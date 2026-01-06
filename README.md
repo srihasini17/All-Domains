@@ -1,10 +1,104 @@
-int load_fields_into_array(char fields[MAX_FIELDS][SIZE_OF_STRING])
+// crud for any domain
+
+#include <stdio.h>
+#include <string.h>
+#define MAX_FIELDS 10
+#define SIZE_OF_STRING 50
+#define FILENAME "records.dat"
+
+int status = 1;
+int getFieldCount(void);
+int loadFieldsIntoArray(char fields[MAX_FIELDS][SIZE_OF_STRING]);
+int splitRecord(char *line, char values[MAX_FIELDS][SIZE_OF_STRING]);
+int createRecord(char fields[MAX_FIELDS][SIZE_OF_STRING], int fieldCount);
+int showAllRecords(char fields[MAX_FIELDS][SIZE_OF_STRING], int fieldCount);
+int updateRecord();
+int deleteRecord();
+void printMenu();
+
+int main()
 {
-	FILE *fp;
+    int fieldCount = getFieldCount();
+    printf("The field count is: %d\n", fieldCount);
+    char fields[MAX_FIELDS][SIZE_OF_STRING];
+    fieldCount = loadFieldsIntoArray(fields);
+    if(fieldCount == 0)
+    {
+        printf("No fields loaded.");
+    }
+    else
+    {
+        printf("\nLoaded files: \n");
+        int counter = 0;
+        for(counter = 0; counter<fieldCount; counter++)
+        {
+            printf("%s\n", fields[counter]);
+        }   
+    }
+    int choice;
+    while(1) 
+    {
+        printMenu();
+        printf("\nEnter your choice: ");
+        scanf("%d", &choice);
+        getchar();    
+        switch(choice) 
+        {
+            case 1:
+                createRecord(fields, fieldCount);
+                break;
+            case 2:
+                showAllRecords(fields, fieldCount);
+                break;
+            case 3:
+                updateRecord();
+                break;
+            case 4:
+                deleteRecord();
+                break;
+            case 5:
+                printf("Exiting...\n");
+                return 0;
+            default:
+                printf("Invalid choice!\n");
+        
+        }
+    }
+    return 0;
+
+}
+
+
+int getFieldCount()
+{
+    FILE *fp;
+    fp = fopen("fields.cfg", "r");
+    if (fp == NULL)
+    {
+        perror("File open failed");
+        return 0;
+    }
+    char field[100];
+    int fieldCount = 0;
+
+    while(fgets(field, sizeof(field), fp) != NULL)
+    {
+        fieldCount++;
+    }
+    fclose(fp);
+    return fieldCount;
+}
+
+int loadFieldsIntoArray(char fields[MAX_FIELDS][SIZE_OF_STRING])
+{
+    FILE *fp;
     char line[SIZE_OF_STRING];
     int count = 0;
 
     fp = fopen("fields.cfg", "r");
+    if (fp == NULL)
+        return 0;
+
     while (fgets(line, sizeof(line), fp))
     {
         if (line[0] == '\n')
@@ -18,7 +112,23 @@ int load_fields_into_array(char fields[MAX_FIELDS][SIZE_OF_STRING])
     return count;
 }
 
-void removeNewline(char *string)
+int splitRecord(char *line, char values[MAX_FIELDS][SIZE_OF_STRING])
+{
+    int count = 0;
+    char *token = strtok(line, ",");
+
+    while (token != NULL && count < MAX_FIELDS)
+    {
+        token[strcspn(token, "\n")] = '\0';  // remove newline
+        strcpy(values[count], token);
+        count++;
+        token = strtok(NULL, ",");
+    }
+    return count;
+}
+
+
+void removeNewLine(char *string)
 {
     char *lastCharacter = &string[strlen(string) - 1];
     if (*lastCharacter == '\n')
@@ -27,17 +137,17 @@ void removeNewline(char *string)
 
 void printMenu()
 {
-	char printMenu[SIZE_OF_STRING];
-	FILE *fpMenu;
-	int menuCounter = 1;
-	fpMenu = fopen("menu.cfg", "r");
-	while(fgets(printMenu, SIZE_OF_STRING, fpMenu))
-	{
-		removeNewline(printMenu);
-		printf("%d:%s\n",menuCounter, printMenu);
-		menuCounter++;
-	}
-	fclose(fpMenu);
+    char printMenu[SIZE_OF_STRING];
+    FILE *fpMenu;
+    int menuCounter = 1;
+    fpMenu = fopen("menu.cfg", "r");
+    while(fgets(printMenu, SIZE_OF_STRING, fpMenu))
+    {
+        removeNewLine(printMenu);
+        printf("%d:%s\n", menuCounter, printMenu);
+        menuCounter++;
+    }
+    fclose(fpMenu);
 }
 
 int createRecord(char fields[MAX_FIELDS][SIZE_OF_STRING], int fieldCount)
@@ -48,96 +158,149 @@ int createRecord(char fields[MAX_FIELDS][SIZE_OF_STRING], int fieldCount)
 
     for (counter = 0; counter < fieldCount; counter++)
     {
+        
+        if (strcmp(fields[counter], "status") == 0)
+        {
+            fprintf(fp, "ACTIVE");
+        }
+        else  
+        {
             printf("Enter %s: ", fields[counter]);
             fgets(input, SIZE_OF_STRING, stdin);
-            removeNewline(input);
-            status = 1;
+
+            if (input[0] == '\n') 
+            {
+                counter--;
+                continue;
+            }
+
+            input[strcspn(input, "\n")] = '\0';
             fprintf(fp, "%s", input);
+        }
+
+        if (counter < fieldCount - 1)
+            fprintf(fp, ",");
+        else
             fprintf(fp, "\n");
     }
+
     fclose(fp);
     printf("Record created successfully!\n");
     return 1;
 }
 
-
-int showAllRecords()
+int showAllRecords(char fields[MAX_FIELDS][SIZE_OF_STRING], int fieldCount)
 {
-	FILE *fp;
-	char line[SIZE];
-	fp = fopen(FILENAME, "r");
-	printf("\n\nAll Records\n\n");
-	while(fgets(line, sizeof(line), fp))
-	{
-		printf("%s", line);
-	}
-	fclose(fp);
-	return 1;
-}
+    FILE *fp = fopen(FILENAME, "r");
+    char line[200];
+    char values[MAX_FIELDS][SIZE_OF_STRING];
+    int i;
 
-int deleteRecord()
-{
-    FILE *fp = fopen(FILENAME, "r+");
-    char line[SIZE];
-    char deleteValue[SIZE_OF_STRING];
-    //long pos;
+    if (!fp)
+    {
+        printf("File not found\n");
+        return 0;
+    }
 
-    printf("Enter value to delete: ");
-    fgets(deleteValue, SIZE_OF_STRING, stdin);
+    printf("\n------ ALL RECORDS ------\n\n");
 
     while (fgets(line, sizeof(line), fp))
     {
-        if (strcmp(line, deleteValue) == 0)
-        {
+        int count = splitRecord(line, values);
 
-            //pos = ftell(fp) - strlen(line) - 1;
-            fseek(fp,-(long)sizeof(line), SEEK_CUR);
-            status = 0;
-            fprintf(fp, "%s\n", (int)strlen(line),status);
-            printf("Record deleted successfully!\n");
-            fclose(fp);
-            return 1;
+        for (i = 0; i < count; i++)
+        {
+            printf("%s: %s\n", fields[i], values[i]);
         }
+        printf("\n");
     }
 
-    printf("Record not found!\n");
     fclose(fp);
-    return 0;
+    return 1;
 }
 
+
+
+int deleteRecord()
+{
+    
+}
 
 int updateRecord()
 {
-    char field[SIZE];
-    FILE *fp;
-    fp = fopen(FILENAME, "r+");
-    char oldValue[SIZE_OF_STRING];
-    char newValue[SIZE_OF_STRING];
-    //long pos;
+    FILE *fp = fopen(FILENAME, "r");
+    FILE *temp = fopen("temp.dat", "w");
 
-    printf("Enter value to update: ");
-    fgets(oldValue, SIZE_OF_STRING, stdin);
-    removeNewline(oldValue);
+    char fields[MAX_FIELDS][SIZE_OF_STRING];
+    char values[MAX_FIELDS][SIZE_OF_STRING];
+    char line[200];
+    char searchId[SIZE_OF_STRING];
+    int fieldCount, found = 0;
+    int i, choice;
 
-    printf("Enter new value: ");
-    fgets(newValue, SIZE_OF_STRING, stdin);
-    removeNewline(newValue);
-
-    while (fgets(field, sizeof(field), fp))
+    if (!fp || !temp)
     {
+        printf("File error\n");
+        return 0;
+    }
 
-        if (strcmp(field, oldValue) == 0)
+    fieldCount = loadFieldsIntoArray(fields);
+
+    printf("Enter Account ID to update: ");
+    fgets(searchId, SIZE_OF_STRING, stdin);
+    removeNewLine(searchId);
+
+    while (fgets(line, sizeof(line), fp))
+    {
+        int count = splitRecord(line, values);
+
+        if (strcmp(values[0], searchId) == 0)
         {
-            //pos = ftell(fp) - strlen(line) - 1;
-            fseek(fp, -(long)sizeof(field), SEEK_CUR);
-            fprintf(fp, "%s\n", newValue);
-            printf("Record updated successfully!\n");
-            fclose(fp);
-            return 1;
+            found = 1;
+
+            printf("\nWhich field do you want to update?\n");
+            for (i = 1; i < fieldCount; i++)
+            {
+                printf("%d. %s\n", i, fields[i]);
+            }
+
+            printf("Enter field number: ");
+            scanf("%d", &choice);
+            getchar();
+
+            if (choice > 0 && choice < fieldCount)
+            {
+                printf("Enter new value for %s: ", fields[choice]);
+                fgets(values[choice], SIZE_OF_STRING, stdin);
+                removeNewLine(values[choice]);
+
+                printf("Record updated successfully!\n");
+            }
+            else
+            {
+                printf("Invalid field choice\n");
+            }
+        }
+
+        for (i = 0; i < count; i++)
+        {
+            fprintf(temp, "%s", values[i]);
+            if (i < count - 1)
+                fprintf(temp, ",");
+            else
+                fprintf(temp, "\n");
         }
     }
 
-    //printf("Record not found!\n");
     fclose(fp);
-    return 0;
+    fclose(temp);
+
+    remove(FILENAME);
+    rename("temp.dat", FILENAME);
+
+    if (!found)
+        printf("Account ID not found!\n");
+
+    return 1;
 }
+
